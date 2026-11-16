@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Routine Panel
+Comment=Every routine of this computer: state, countdown and tokens of the last cycle
+Exec="@PYTHON@" -I "@ROOT@/bin/routine-panel"
+Icon=store.themechanic.RoutinePanel
+Terminal=false
+Categories=Utility;System;Monitor;
+Keywords=routines;timers;automation;systemd;claude;tokens;
+StartupNotify=false
+StartupWMClass=@WMCLASS@

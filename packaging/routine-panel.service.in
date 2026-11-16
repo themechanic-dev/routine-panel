@@ -1,0 +1,13 @@
+[Unit]
+Description=Routine Panel for paired phones (reads only: serves the panel over Tailscale and the home network)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart="@PYTHON@" -I "@ROOT@/bin/routine-panel" --service
+Restart=on-failure
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=default.target

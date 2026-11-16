@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Routine Panel</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <img src="icon.svg" alt="" width="30" height="30">
+    <div>
+      <h1>Routine Panel</h1>
+      <p id="host">This computer · reads only</p>
+    </div>
+  </div>
+  <div class="counts" id="counts" aria-live="polite"></div>
+  <div class="tools">
+    <span class="clock" id="clock" aria-label="Time now"></span>
+    <div class="seg" role="radiogroup" aria-label="Theme">
+      <button type="button" role="radio" data-theme-choice="auto" aria-checked="true">Auto</button>
+      <button type="button" role="radio" data-theme-choice="light" aria-checked="false">Light</button>
+      <button type="button" role="radio" data-theme-choice="dark" aria-checked="false">Dark</button>
+    </div>
+    <div class="seg view-seg" role="radiogroup" aria-label="View">
+      <button type="button" role="radio" data-view-choice="list" aria-checked="true" aria-label="List" title="List: one row per routine">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h12"/></svg><span class="seg-text">List</span></button>
+      <button type="button" role="radio" data-view-choice="grid" aria-checked="false" aria-label="Grid" title="Grid: every routine fits in the window">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg><span class="seg-text">Grid</span></button>
+    </div>
+    <button type="button" id="phones-open" class="btn" hidden title="Pair a phone with this panel">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.2h2"/></svg>Phone</button>
+    <button type="button" id="app-menu" class="btn" hidden aria-label="App menu">☰</button>
+    <button type="button" id="help-open" class="btn">Help</button>
+  </div>
+</header>
+
+<div id="banner" class="banner" role="status" hidden></div>
+
+<main id="main">
+  <p class="loading" id="loading">Reading the routines…</p>
+  <div id="tiles" class="tiles" aria-label="Routines"></div>
+</main>
+
+<footer>
+  <span>Reads only: nothing here starts, stops or changes a routine.</span>
+  <span id="updated"></span>
+</footer>
+
+<dialog id="help" aria-labelledby="help-title">
+  <form method="dialog" class="help-head">
+    <h2 id="help-title">How Routine Panel works</h2>
+    <button class="btn" value="close" aria-label="Close help">Close</button>
+  </form>
+  <div class="help-body">
+    <p>Routine Panel shows every routine and automation of this computer in one place: whether it is running now,
+      how long until it runs next, how its last run went, and how many tokens its <b>last cycle</b> used.
+      It refreshes every 2 seconds and the countdowns tick every second.</p>
+
+    <h3>It only reads</h3>
+    <p>Nothing here starts, stops or changes a routine. There is no button for that and the panel's server has no
+      request that writes. To change a routine, use the place it belongs to (the Claude app, or
+      <code>systemctl --user</code> for timers).</p>
+
+    <h3>States</h3>
+    <dl class="states">
+      <dt><span class="pill s-running"><i class="dot"></i>Running</span></dt>
+      <dd>It is running right now; the line under it says for how long. A row lights up for a moment when its
+        routine starts.</dd>
+      <dt><span class="pill s-waiting"><i class="dot"></i>Waiting</span></dt>
+      <dd>Its last run went well and it waits for the next one.</dd>
+      <dt><span class="pill s-fault"><i class="dot"></i>Fault</span></dt>
+      <dd>Something is wrong: the last run failed, a run that was due did not happen, a program that should run all
+        the time is down or its heartbeat stopped, or the Claude app is closed (its routines run only while it is
+        open). The reason and the last lines of the log are shown in the row.</dd>
+      <dt><span class="pill s-off"><i class="dot"></i>Off</span></dt>
+      <dd>Turned off: it will not run until someone turns it on again.</dd>
+      <dt><span class="note-attention">Needs you</span></dt>
+      <dd>The routine is fine but waits for your answer (for example a proposal sent to your phone).</dd>
+    </dl>
+
+    <h3>Columns</h3>
+    <ul>
+      <li><b>Schedule</b>: when it runs, in words. Claude routines start a few minutes after their time, the same
+        few minutes each time, so the panel shows the usual delay and marks the next run with ≈.</li>
+      <li><b>Next run</b>: a countdown to the next run, and its time. “After this run” means the next time is set
+        when the running one ends.</li>
+      <li><b>Last run</b>: when it started, how long it took, and what it said at the end.</li>
+      <li><b>Tokens · last cycle</b>: the tokens of the last run only, never totals. <i>in</i> is what was sent
+        to Claude and not read from the cache (cache writes included), <i>cache</i> what was read from the cache,
+        <i>out</i> what Claude wrote. “so far” marks a run that is still going. “no Claude” means the routine does
+        not use Claude; “—” for the cache means its log does not record it.</li>
+    </ul>
+    <p>Click a row (or press Enter on it) for its details: where it comes from, the exact numbers and the last lines
+      of its log.</p>
+
+    <h3>List and Grid</h3>
+    <p>The switch at the top right changes the view. <b>List</b> shows one row per routine, grouped by where it
+      comes from. <b>Grid</b> shows each routine as a tile and fits them all in the window, without scrolling:
+      the panel chooses the number of columns and the size of the text from the window's size and the number of
+      routines, and does it again when a routine is added or the window changes size. Click a tile for its details.
+      The view you choose is remembered.</p>
+
+    <h3>Where it reads from</h3>
+    <ul>
+      <li><b>Timers</b> (Linux): your own systemd timers (unit files in <code>~/.config/systemd/user</code> and
+        timers made with <code>systemd-run</code>), with their journal. <b>Scheduled tasks</b> (Windows): the tasks of
+        Task Scheduler whose author is you.</li>
+      <li><b>Claude routines</b>: the Claude app's scheduled tasks and their runs, and Claude Code's transcripts
+        (<code>~/.claude/projects</code>) for the tokens.</li>
+      <li><b>Always running</b>: programs you name in the settings, with their heartbeat file.</li>
+    </ul>
+
+    <h3>Settings</h3>
+    <p>Optional, in <code>~/.config/routine-panel/settings.json</code> (on Windows
+      <code>%APPDATA%\RoutinePanel\settings.json</code>); the panel reads them when it opens.</p>
+    <ul>
+      <li><code>"screen"</code>: the monitor the window opens on.</li>
+      <li><code>"token_logs"</code>: <code>{"name.service": "~/path/to.log"}</code> for a program that calls
+        Claude itself and writes each call to its log (“asked claude-…: N tokens in, M out”).</li>
+      <li><code>"processes"</code>: programs that run all the time:
+        <code>[{"unit": "name.service", "heartbeat": "~/file", "every_s": 60, "log": "~/file"}]</code>.</li>
+      <li><code>"hidden"</code>: ids of rows to leave out (each row's details show its id);
+        <code>"labels"</code>: another name or line for a row; <code>"show_system_timers"</code>: also the
+        system's own timers.</li>
+    </ul>
+
+    <h3>Phones</h3>
+    <p>The <b>Phone</b> button pairs a phone with the panel: it shows a code that the Routine Panel app on the phone
+      scans once. After that the phone shows the same panel, at home over the home network and away over Tailscale
+      (both the phone and this computer must be in your Tailscale network). A phone only reads, like the window. Each
+      phone has a key of its own: <b>Remove</b> takes it away at once. A code nobody scanned stops working after
+      10 minutes. Phones connect through Routine Panel's service, which starts when you sign in. It is installed
+      with <code>./install.sh --phone</code> on Linux, and with the Setup's option “Let my phone see the panel” on
+      Windows.</p>
+
+    <h3>Theme</h3>
+    <p>Auto follows the system's light or dark style; Light and Dark keep one. The choice is remembered.</p>
+
+    <h3>The window</h3>
+    <p>The window opens where it was when you closed it: on the same screen, and full screen or maximized if it was.
+      F11 leaves full screen and goes back to it. The first time, it opens as the settings say
+      (<code>"screen"</code> and <code>"window_mode"</code>: normal, maximized or fullscreen).</p>
+
+    <div class="signature" aria-label="HOME LAB, by the mechanic">
+      <span class="signature-mark">HOME LAB</span>
+      <span class="signature-line">by the mechanic</span>
+      <span class="signature-line" id="signature-version"></span>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="phones" aria-labelledby="phones-title">
+  <form method="dialog" class="help-head">
+    <h2 id="phones-title">Phones</h2>
+    <button class="btn" value="close" aria-label="Close phones">Close</button>
+  </form>
+  <div class="help-body">
+    <p id="phones-note" class="sub"></p>
+    <div id="pair-box" class="pair-box" hidden>
+      <img id="pair-qr" alt="Pairing code for the Routine Panel app" width="264" height="264">
+      <div class="pair-steps">
+        <ol>
+          <li>Open the <b>Routine Panel</b> app on the phone and tap <b>Scan the code</b>
+            (or scan it with the phone's camera).</li>
+          <li>Point the phone at this code.</li>
+          <li>The panel opens on the phone. This window says when it has paired.</li>
+        </ol>
+        <p class="sub" id="pair-where"></p>
+        <p class="sub" id="pair-expires"></p>
+      </div>
+    </div>
+    <p id="pair-done" class="pair-done" hidden></p>
+    <p><button type="button" id="pair-start" class="btn primary">Pair a phone</button></p>
+    <h3>Paired phones</h3>
+    <ul id="phones-list" class="phones-list"></ul>
+  </div>
+</dialog>
+
+<dialog id="detail" aria-labelledby="detail-title">
+  <form method="dialog" class="help-head">
+    <h2 id="detail-title"></h2>
+    <button class="btn" value="close" aria-label="Close details">Close</button>
+  </form>
+  <div class="help-body" id="detail-body"></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
